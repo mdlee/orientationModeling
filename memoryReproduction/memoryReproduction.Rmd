@@ -1,0 +1,140 @@
+---
+title: "Ngiam and Lee (2026) - memoryReproduction"
+author: "William XQ Ngiam"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+## Overview
+
+This file is associated with the preprint titled ["Similarity judgments and visual working memory do not share the same cognitive representation"](https://osf.io/preprints/psyarxiv/fm9vz_v1) by William XQ Ngiam (Adelaide University) and Michael D Lee (University of California Irvine). This research project models the cognitive representation underlying perceptual tasks, working memory tasks, and similarity judgment tasks.
+
+The following model recovers the underlying psychological space for the orientation **memory reproduction** task in [Tomic and Bays (2024)](https://psycnet.apa.org/doi/10.1037/xlm0001172). In this task, either three or six oriented lines (randomly sampled from 0 to 180 degrees) is shown to the subject. The subject is probed to recall the orientation of one of the shown lines, and has to reproduce the orientation as closely as possible.
+
+The following code builds a Bayesian Thurstonian model using JAGS, recovering the latent representation of the orientations. This memory model **includes swap errors** - that the subject may erroneously reproduce the orientation of a non-target item in the array. A memory model that does not include swap errors is included in the original manuscript; this code can be easily adjusted to run that model.
+
+### Requirements
+
+The following files should be saved in your working directory:
+
+* The data file ("oriWMData_clean.csv") - [downloadable here](https://github.com/WilliamNgiam/orientationModeling/blob/main/data/oriWMData_clean.csv).
+* The model text file ("memoryReproduction_jags.txt") - [downloadable here](https://github.com/WilliamNgiam/orientationModeling/blob/main/memoryReproduction/memoryReproduction_jags.txt).
+
+You will also need to have installed JAGS on your device. The installer can be accessed here: [https://sourceforge.net/projects/mcmc-jags/files/]. The following code was built using JAGS 4.3.2.
+
+### Setup
+
+```{r setup}
+# Load required packages
+library(R2jags) # v0.8-9
+library(tidyverse) # v2.0.0
+library(coda) # v0.19-4.1
+library(ggmcmc) # v1.5.1.2
+
+# Provide R session output 
+sessionInfo()
+
+# Set RNG seed for reproducibility
+set.seed(42)
+
+# Remove hashes from output
+knitr::opts_chunk$set(comment = NA)
+```
+
+### Load data
+
+```{r read data, warning = FALSE, message = FALSE}
+# Load in Tomic and Bays (2024) dataset
+memData <- read_csv(paste0(getwd(),"/oriWMData_clean.csv"))
+
+# Create intervals to match the Tomic and Bays (2024) perceptual task.
+binIntervals = seq(-pi,pi,length.out = 73)
+
+# Assign indices to the closest interval for the target (stimulus) values and response values
+memData <- memData %>% 
+  mutate(response = signif(response,digits = 5)) %>% 
+  rowwise() %>% 
+  # Change all NaNs to NA
+  mutate(across(c("nontarget_3", "nontarget_4", "nontarget_5"),
+                na_if, NaN)) %>% 
+  # Match response and target values to the intervals on the semi-circle
+  mutate(responseIndex = which.min(abs(response-binIntervals)),
+         targetIndex = which.min(abs(target-binIntervals)),
+         nontarget1_idx = which.min(abs(nontarget_1-binIntervals)),
+         nontarget2_idx = which.min(abs(nontarget_2-binIntervals)),
+         nontarget3_idx = list(case_when(!is.na(nontarget_3) ~ which.min(abs(as.numeric(nontarget_3)-binIntervals)))),
+         nontarget4_idx = list(case_when(!is.na(nontarget_4) ~ which.min(abs(as.numeric(nontarget_4)-binIntervals)))),
+         nontarget5_idx = list(case_when(!is.na(nontarget_5) ~ which.min(abs(as.numeric(nontarget_5)-binIntervals))))) %>% 
+  # The response and target values closest to pi are re-indexed to the first bin (0)
+  mutate(responseIndex = case_when(responseIndex == 73 ~ 1,
+                                   .default = responseIndex),
+         targetIndex = case_when(targetIndex == 73 ~ 1,
+                                 .default = targetIndex)) %>% 
+  # Change values
+  mutate(target = (target+pi)/2,
+         response = (response + pi)/2)
+
+# Set up the true values to be recovered
+muTruth = (binIntervals[-73] + pi)/2 # Remove the last index because that is the point at which the circle wraps around
+sigmaTruth = 0.01
+
+# Assign data to vectors
+setSize <- as.vector(memData$setsize/3)
+stim <- memData %>% 
+  select(targetIndex, nontarget1_idx, nontarget2_idx, nontarget3_idx, nontarget4_idx, nontarget5_idx)
+stim <- as.matrix(stim)
+y <- as.numeric(memData$response)
+nTrials <- as.numeric(length(memData$response))
+nStimuli <- as.numeric(length(muTruth))
+```
+
+### Read in data for JAGS
+
+```{r read in data}
+data.jags <- list("setSize","stim","y","nTrials","nStimuli")
+bayes.mod.params <- c("mu","sigma", "omega3", "omega6")
+bayes.mod.inits <- function() {
+  list("sigma" = runif(2)*pi)
+}
+```
+
+### Run model fit
+
+```{r run model fit}
+bayes.mod.fit <- jags(data = data.jags,
+                      inits = bayes.mod.inits,
+                      parameters.to.save = bayes.mod.params,
+                      n.chains = 4,
+                      n.iter = 8000,
+                      n.burnin = 1000,
+                      model.file = paste0(getwd(),"/memoryReproduction_jags.txt"))
+
+```
+### Evaluate model
+
+```{r evaluate model}
+print(bayes.mod.fit)
+```
+
+```{r evaluate model as mcmc}
+bayes.mod.fit.mcmc <- as.mcmc(bayes.mod.fit)
+summary(bayes.mod.fit.mcmc)
+```
+
+### Plots
+
+```{r plot model}
+# Convert into ggmcmc object
+bayes.mod.fit.gg <- ggs(bayes.mod.fit.mcmc)
+
+ggs_caterpillar(bayes.mod.fit.gg,
+                family = "mu",
+                thick_ci = c(0.45,0.55),
+                sort = FALSE)
+
+ggs_density(bayes.mod.fit.gg,
+            family = "omega3")
+
+ggs_density(bayes.mod.fit.gg,
+            family = "omega6")
+```
