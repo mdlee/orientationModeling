@@ -1,0 +1,138 @@
+---
+title: "similarityComparison"
+author: "William XQ Ngiam"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+## Overview
+
+This file is associated with the preprint titled ["Similarity judgments and visual working memory do not share the same cognitive representation"](https://osf.io/preprints/psyarxiv/fm9vz_v1) by William XQ Ngiam (Adelaide University) and Michael D Lee (University of California Irvine. This research project models the underlying psychological space in perceptual tasks, working memory tasks, and similarity judgment tasks.
+
+The following model recovers the underlying psychological space for the orientation **similarity comparison** task in [Tomic and Bays (2024)](https://psycnet.apa.org/doi/10.1037/xlm0001172). In this task, two pairs of oriented lines (each randomly sampled from 0 to 180 degrees in 5 degree increments) is shown to the subject. The subject is asked which pair is more similar.
+
+The following code builds a Bayesian Thurstonian model using JAGS. The underlying Thurstonian model is an attempt to recover the representation (much like multidimensional scaling) of the orientations. Then, this model could be used to predict performance on other tasks; such as a working memory task with these orientations. 
+
+### Requirements
+
+The following files should be saved in your working directory:
+
+* The data file ("oriSimData_clean.csv") - [downloadable here](https://github.com/WilliamNgiam/orientationModeling/blob/main/data/oriSimData_clean.csv).
+* The model text file ("similarityComparison_jags.txt") - [downloadable here](https://github.com/WilliamNgiam/orientationModeling/blob/main/similarityComparison/similarityComparison_jags.txt).
+
+You will also need to have installed JAGS on your device. The installer can be accessed here: [https://sourceforge.net/projects/mcmc-jags/files/]. This code was built using JAGS 4.3.2.
+
+### Setup
+
+```{r setup}
+# Load required packages
+library(R2jags) # v0.8-9
+library(tidyverse) # v2.0.0
+library(coda) # v0.19-4.1
+library(ggmcmc) # v1.5.1.2
+
+# Provide R session output 
+sessionInfo()
+
+# Set RNG seed for reproducibility
+set.seed(42)
+```
+
+### Load data
+
+```{r read data, warning = FALSE, message = FALSE}
+# Load in Tomic and Bays (2024) dataset
+simData <- read_csv(paste0(getwd(),"/oriSimData_clean.csv"))
+
+# Create intervals to match the Tomic and Bays (2024) perceptual task.
+oriVals <- seq(0,2*pi,length.out = 73) # The orientation values in the dataset
+
+simData <- simData %>% 
+  rowwise() %>% 
+  mutate(across(starts_with("pair"), ~ which.min(abs(.x-oriVals)),
+                .names = "{col}_idx"))
+
+# Assign data to vectors
+a <- as.integer(simData$pairA_1_idx)
+b <- as.integer(simData$pairA_2_idx)
+c <- as.integer(simData$pairB_1_idx)
+d <- as.integer(simData$pairB_2_idx)
+y <- as.integer(1 - simData$response)
+
+nTrials <- as.integer(length(simData$response))
+nStimuli <- as.integer(72)
+
+# Provide censoring initial values
+xAinit <- vector()
+xBinit <- vector()
+xCinit <- vector()
+xDinit <- vector()
+
+for (t in 1:nTrials) {
+  if (y[t] == 0) {
+    xAinit[t] = 1.6
+    xBinit[t] = 1.7
+    xCinit[t] = 1.6
+    xDinit[t] = 1.8
+  } else {
+    xAinit[t] = 1.6
+    xBinit[t] = 1.8
+    xCinit[t] = 1.6
+    xDinit[t] = 1.7
+  }
+}
+```
+
+### Read in data for JAGS
+
+```{r read in data}
+data.jags <- list("a","b","c","d","y","nTrials","nStimuli")
+bayes.mod.params <- c("mu","sigma")
+bayes.mod.inits <- function() {
+  list("xA" = xAinit,
+       "xB" = xBinit,
+       "xC" = xCinit,
+       "xD" = xDinit)
+}
+```
+
+### Run model fit
+
+```{r run model fit}
+bayes.mod.fit <- jags(data = data.jags,
+                      inits = bayes.mod.inits,
+                      parameters.to.save = bayes.mod.params,
+                      n.chains = 4,
+                      n.iter = 8000,
+                      n.burnin = 2000,
+                      n.thin = 10,
+                      model.file = paste0(getwd(),"/similarityComparison_jags.txt"))
+
+```
+### Evaluate model
+
+```{r evaluate model}
+print(bayes.mod.fit)
+```
+
+```{r evaluate model as mcmc}
+bayes.mod.fit.mcmc <- as.mcmc(bayes.mod.fit)
+summary(bayes.mod.fit.mcmc)
+```
+
+### Plots
+
+```{r plot model}
+# Convert into ggmcmc object
+bayes.mod.fit.gg <- ggs(bayes.mod.fit.mcmc)
+
+ggs_caterpillar(bayes.mod.fit.gg,
+                thick_ci = c(0.45,0.55),
+                family = "mu",
+                sort = FALSE) +
+  theme_minimal() +
+  theme(aspect.ratio = 1)
+
+ggs_density(bayes.mod.fit.gg,
+            family = "sigma")
+```
