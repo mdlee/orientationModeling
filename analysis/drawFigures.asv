@@ -310,7 +310,7 @@ for analysisIdx = 1:numel(analysisList)
             end
          end
 
-
+     
 
       case 'clusterSavageDickey'
 
@@ -396,7 +396,7 @@ for analysisIdx = 1:numel(analysisList)
             'location', 'northeast');
          set(L, 'position', get(L, 'position') + [0.075 0.05 0 0]);
 
-      case 'statisticalSummaries'
+          case 'statisticalSummaries'
 
          fid = fopen('statisticalSummaries.txt', 'w');
 
@@ -416,11 +416,7 @@ for analysisIdx = 1:numel(analysisList)
          fprintf('Loading pre-stored samples from file %s\n', fileName);
          load(sprintf('%s', fileName), 'chains');
          [keepChains, rHat] = findKeepChains(chains.sigma, 2, 1.1);
-         fields = fieldnames(chains);
-         for i = 1:numel(fields)
-            chains.(fields{i}) = chains.(fields{i})(:, keepChains);
-         end
-         fprintf(fid, '\n----------\nPerceptual Reconstruction\n\n');
+         fprintf(fid, '\n ----------\nPerceptual Model\n\n');
 
          sigma = codatable(chains, 'sigma', @mean);
          bounds = prctile(chains.sigma(:), CIbounds);
@@ -432,11 +428,7 @@ for analysisIdx = 1:numel(analysisList)
          load(sprintf('%s', fileName), 'chains');
          [keepChains, rHat] = findKeepChains(chains.sigma_1, 2, 1.1);
          keepChains = setdiff(keepChains, 8); % remove 8 via visual inspection of mu_6
-         fields = fieldnames(chains);
-         for i = 1:numel(fields)
-            chains.(fields{i}) = chains.(fields{i})(:, keepChains);
-         end
-         fprintf(fid, '\n----------\nMemory Reconstruction\n\n');
+         fprintf(fid, '\n----------\nMemory Model\n\n');
 
          % posterior summary for sigmas
          sigma3 = codatable(chains, 'sigma_1', @mean);
@@ -523,15 +515,12 @@ for analysisIdx = 1:numel(analysisList)
          fprintf('\n----------\nLoading pre-stored samples from file %s\n', fileName);
          load(sprintf('%s', fileName), 'chains');
          [keepChains, rHat] = findKeepChains(chains.sigma, 2, 1.1);
-         fields = fieldnames(chains);
-         for i = 1:numel(fields)
-            chains.(fields{i}) = chains.(fields{i})(:, keepChains);
-         end
          fprintf(fid, '\n----------\nSimilarity Comparison\n\n');
 
          sigma = codatable(chains, 'sigma', @mean);
          bounds = prctile(chains.sigma(:), CIbounds);
          fprintf(fid, 'Posterior mean of sigma is %1.3f, with 95%% CI (%1.3f, %1.3f)\n', sigma, bounds);
+
 
          % CLUSTER
          scale = 4;
@@ -561,9 +550,9 @@ for analysisIdx = 1:numel(analysisList)
          bw = sigma * (4 / (n * (d + 4))) ^ (1 / (d + 4));
          fPrior = ksdensity(Xprior, Xcrit, 'Bandwidth', bw*scale);
 
-         logBF = log(fPosterior) - log(fPrior);
+         logBF = log(fPosterior) - log(fPrior)
          fprintf(fid, 'Via kernel density estimation (with bandwidth boosted by factor of %d to avoid -inf), the log BF for the joint null is %.0f\n', ...
-            scale, logBF);
+            logBF);
 
          Xposterior = chains.gammaPM(:);
          Xprior = chains.gammaPrior(:);
@@ -582,7 +571,7 @@ for analysisIdx = 1:numel(analysisList)
 
          logBF = log(fPosterior) - log(fPrior);
          fprintf(fid, 'Via kernel density estimation (with bandwidth boosted by factor of %d to avoid -inf, the log BF for the perceptual-memory null is %.0f\n', ...
-            scale, logBF);
+            logBF);
 
          Xposterior = chains.gammaPS(:);
          Xprior = chains.gammaPrior(:);
@@ -601,7 +590,7 @@ for analysisIdx = 1:numel(analysisList)
 
          logBF = log(fPosterior) - log(fPrior);
          fprintf(fid, 'Via kernel density estimation (with bandwidth boosted by factor of %d to avoid -inf, the log BF for the perceptual-similarity null is %.0f\n', ...
-            scale, logBF);
+            logBF);
 
 
          fclose(fid);

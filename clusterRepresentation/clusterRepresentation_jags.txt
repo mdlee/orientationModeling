@@ -1,0 +1,88 @@
+# cluster representation, measuring how memory and similarity differ from perceptual
+
+data{
+  pi = 3.1415
+  # wrap indices
+  for (r in 1:nStimuli){
+    sWrapP[r, 1] = r
+    sWrapP[r, 2] = r + nStimuli
+    sWrapP[r, 3] = r + 2*nStimuli
+  }
+  for (t in 1:nMTrials){
+    for (w in 1:maxPresented){
+      sWrapM[t, w] = sM[t, w]
+      sWrapM[t, w+maxPresented] = sM[t, w] + nStimuli
+      sWrapM[t, w+2*maxPresented] = sM[t, w] + 2*nStimuli
+    }
+  }
+}
+
+model{
+ # identifiability priors
+  muP[1] = 0
+  muP[2] ~ dunif(0, pi/2)
+  for (j in 3:nStimuli){
+    muP[j] ~ dunif(0, pi)
+  }
+  for (r in 1:nStimuli){
+    muP[r + nStimuli] = muP[r] - pi
+    muP[r + 2*nStimuli] = muP[r] + pi
+  }
+
+  # displacement weight
+  gammaPrior ~ dnorm(0, 1)T(0,)
+  gammaPM ~ dnorm(0, 1)T(0,)
+  gammaPS ~ dnorm(0, 1)T(0,)
+
+  # displacements
+  for (j in 1:nStimuli){
+    for (k in 1:2){
+      delta[j, k] ~ dunif(-pi/2, pi/2)
+    }
+    muM[j] = muP[j] + gammaPM*delta[j, 1]
+    muS[j] = muP[j] + gammaPS*delta[j, 2]
+    muM[j + nStimuli] = muP[j + nStimuli] + gammaPM*delta[j, 1]
+    muS[j + nStimuli] = muP[j + nStimuli] + gammaPS*delta[j, 2]
+    muM[j + 2*nStimuli] = muP[j + 2*nStimuli] + gammaPM*delta[j, 1]
+    muS[j + 2*nStimuli] = muP[j + 2*nStimuli] + gammaPS*delta[j, 2]
+  }
+
+  # perceptual reproduction noise
+  sigmaP ~ dunif(0, pi)
+  # experimental trials
+  for (t in 1:nPTrials){
+    nu[t] ~ dcat(c(1, 1, 1))
+    # response
+    yP[t] ~ dnorm(muP[sWrapP[sP[t], nu[t]]], 1/sigmaP^2)
+  }
+
+  # memory noise
+  sigmaM[1] ~ dunif(0, pi)
+  sigmaM[2] ~ dunif(0, pi)
+  # swap errors
+  omega3 ~ ddirch(rep(1, 3))
+  omega6 ~ ddirch(rep(1, 6))
+  # experimental trials
+  for (t in 1:nMTrials){
+    # stimulus being targeted
+    xi[t, 1] ~ dcat(c(omega3[1], omega3[2], omega3[3], 0, 0, 0, omega3[1], omega3[2], omega3[3], 0, 0, 0, omega3[1], omega3[2], omega3[3], 0, 0, 0))
+    xi[t, 2] ~ dcat(c(omega6[1], omega6[2], omega6[3], omega6[4], omega6[5], omega6[6], omega6[1], omega6[2], omega6[3], omega6[4], omega6[5], omega6[6], omega6[1], omega6[2], omega6[3], omega6[4], omega6[5], omega6[6]))
+    # response
+    yM[t] ~ dnorm(muM[sWrapM[t, xi[t, setSize[t]]]], 1/sigmaM[setSize[t]]^2)
+  }
+
+  # similarity sampling noise 
+  sigmaS ~ dunif(0, pi)
+  for (t in 1:nSTrials){
+    # mental samples
+    xA[t] ~ dnorm(muS[a[t]], 1/sigmaS^2)
+    xB[t] ~ dnorm(muS[b[t]], 1/sigmaS^2)
+    xC[t] ~ dnorm(muS[c[t]], 1/sigmaS^2)
+    xD[t] ~ dnorm(muS[d[t]], 1/sigmaS^2)
+    # distances allowing for directionless orientations
+    dAB[t] = min(abs(xA[t]-xB[t]), pi-abs(xA[t]-xB[t]))
+    dCD[t] = min(abs(xC[t]-xD[t]), pi-abs(xC[t]-xD[t]))
+    # response
+    yS[t] ~ dinterval(dAB[t] - dCD[t], 0)
+  }
+}

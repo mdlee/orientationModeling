@@ -1,7 +1,17 @@
-# memory reproduction model
+# memory reproduction model with modulus
+
 data{
   pi = 3.1415
+  # wrap indices
+  for (t in 1:nTrials){
+    for (w in 1:maxPresented){
+      sWrap[t, w] = s[t, w]
+      sWrap[t, w+maxPresented] = s[t, w] + nStimuli
+      sWrap[t, w+2*maxPresented] = s[t, w] + 2*nStimuli
+    }
+  }
 }
+
 model{
   # identifiability priors
   mu[1] = 0
@@ -9,18 +19,25 @@ model{
   for (j in 3:nStimuli){
     mu[j] ~ dunif(0, pi)
   } 
+  for (r in 1:nStimuli){
+    mu[r + nStimuli] = mu[r] - pi
+    mu[r + 2*nStimuli] = mu[r] + pi
+  }
   # memory noise
   sigma[1] ~ dunif(0, pi)
   sigma[2] ~ dunif(0, pi)
-  # swap error probabilities
+  # swap errors
+  omega3prior ~ ddirch(rep(1, 3))
+  omega6prior ~ ddirch(rep(1, 6))
   omega3 ~ ddirch(rep(1, 3))
   omega6 ~ ddirch(rep(1, 6))
   # experimental trials
   for (t in 1:nTrials){
     # stimulus being targeted
-    xi[t, 1] ~ dcat(omega3)
-    xi[t, 2] ~ dcat(omega6)
+    xi[t, 1] ~ dcat(c(omega3[1], omega3[2], omega3[3], 0, 0, 0, omega3[1], omega3[2], omega3[3], 0, 0, 0, omega3[1], omega3[2], omega3[3], 0, 0, 0))
+    xi[t, 2] ~ dcat(c(omega6[1], omega6[2], omega6[3], omega6[4], omega6[5], omega6[6], omega6[1], omega6[2], omega6[3], omega6[4], omega6[5], omega6[6], omega6[1], omega6[2], omega6[3], omega6[4], omega6[5], omega6[6]))
     # response
-    y[t] ~ dnorm(mu[stim[t, xi[t, setSize[t]]]], 1/sigma[setSize[t]]^2)
+    y[t] ~ dnorm(mu[sWrap[t, xi[t, setSize[t]]]], 1/sigma[setSize[t]]^2)
+    yP[t] ~ dnorm(mu[sWrap[t, xi[t, setSize[t]]]], 1/sigma[setSize[t]]^2)
   }
 } 

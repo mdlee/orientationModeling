@@ -1,0 +1,35 @@
+
+ ----------
+Perceptual Model
+
+Posterior mean of sigma is 0.157, with 95% CI (0.153, 0.160)
+
+----------
+Memory Model
+
+Posterior mean of sigma for set size 3 is 0.525, with 95% CI (0.507, 0.543)
+Posterior mean of sigma for set size 6 is 0.658, with 95% CI (0.625, 0.693)
+Posterior means for omega for set size 3 are (0.862, 0.064, 0.074)
+Posterior means for omega for set size 6 are (0.550, 0.089, 0.065, 0.074, 0.081, 0.139)
+Posterior mean of omega_1 for set size 3 is 0.862, with 95% CI (0.834, 0.890)
+Posterior mean of omega_2 for set size 3 is 0.064, with 95% CI (0.036, 0.093)
+Posterior mean of omega_3 for set size 3 is 0.074, with 95% CI (0.052, 0.095)
+Posterior mean of omega_1 for set size 6 is 0.550, with 95% CI (0.477, 0.619)
+Posterior mean of omega_2 for set size 6 is 0.089, with 95% CI (0.030, 0.162)
+Posterior mean of omega_3 for set size 6 is 0.065, with 95% CI (0.015, 0.116)
+Posterior mean of omega_4 for set size 6 is 0.074, with 95% CI (0.027, 0.125)
+Posterior mean of omega_5 for set size 6 is 0.081, with 95% CI (0.034, 0.130)
+Posterior mean of omega_6 for set size 6 is 0.139, with 95% CI (0.092, 0.188)
+Via multivariate kernel density estimation, the log BF for the null is -701 for 3 targets and -509 for 6 targets
+
+----------
+Similarity Comparison
+
+Posterior mean of sigma is 0.273, with 95% CI (0.267, 0.278)
+
+----------
+Cluster Bayes Factor
+
+Via kernel density estimation (with bandwidth boosted by factor of 4 to avoid -inf), the log BF for the joint null is -495
+Via kernel density estimation (with bandwidth boosted by factor of 4 to avoid -inf, the log BF for the perceptual-memory null is -151
+Via kernel density estimation (with bandwidth boosted by factor of 4 to avoid -inf, the log BF for the perceptual-similarity null is -657

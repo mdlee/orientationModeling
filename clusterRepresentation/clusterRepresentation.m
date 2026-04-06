@@ -1,0 +1,253 @@
+%% Cluster representation, allowing either memory or similarity (or both) to match perceptual
+
+clear; close all;
+preLoad = true;
+
+% graphical model script
+modelDir = './';
+modelName = 'clusterRepresentation';
+engine = 'jags';
+
+% data sets
+dataList = {...
+   'tomicBays'; ...
+   };
+
+%% constants
+pi = 3.1415;
+load pantoneColors pantone
+fontSize = 18;
+CI = [2.5 97.5];
+
+% loop over data
+for dataIdx = 1:numel(dataList)
+   dataName = dataList{dataIdx};
+   switch dataName
+
+      case 'tomicBays'
+         dataDir = '../data/';
+         dataName = 'tomicBays';
+         load([dataDir dataName], 'dp', 'dm', 'ds');
+
+         nStimuli = dp.nStimuli;
+
+         yP = dp.response;
+         yM = dm.response;
+         yS = ds.response;
+
+         nPTrials = length(yP);
+         sP = dp.sIdx;
+
+         nMTrials = length(yM);
+         [~, ~, setSize] = unique(dm.setSize, 'stable');
+         sM = [dm.tIdx dm.nIdx];
+         sM(isnan(sM)) = 1;
+         [~, maxPresented] = size(sM);
+
+
+         nSTrials = length(yS);
+         a = ds.aIdx;
+         b = ds.bIdx;
+         c = ds.cIdx;
+         d = ds.dIdx;
+
+   end
+
+   %% sampling from graphical model
+   % parameters to monitor
+   params = {'gammaPM', 'gammaPS', 'gammaPrior', ...
+      'muP', 'muM', 'muS'};
+
+    % MCMC properties
+   nChains    = 20;     % number of MCMC chains
+   nBurnin    = 1e3;   % number of discarded burn-in samples
+   nSamples   = 2e3;   % number of collected samples
+   nThin      = 5;    % number of samples between those collected
+   doParallel = 1;     % whether MATLAB parallel toolbox parallizes chains
+
+   % assign MATLAB variables to the observed nodes
+   data = struct(...
+      'yP'          , yP       , ...
+      'yM'          , yM       , ...
+      'yS'          , yS       , ...
+      'nStimuli'    , nStimuli , ...
+      'nPTrials'    , nPTrials , ...
+      'nMTrials'    , nMTrials , ...
+      'nSTrials'    , nSTrials , ...
+      'sP'          , sP       , ...
+      'sM'          , sM       , ...
+      'setSize'     , setSize  , ...
+      'maxPresented', maxPresented, ...
+      'a'           , a        , ...
+      'b'           , b        , ...
+      'c'           , c        , ...
+      'd'           , d        );
+
+% censoring initial values so data have likelihood on first sample
+   for t = 1:nSTrials
+      if yS(t) == 0
+         xAinit(t) = 0.6; xBinit(t) = 0.7;
+         xCinit(t) = 0.6; xDinit(t) = 0.8;
+      else
+         xAinit(t) = 0.6; xBinit(t) = 0.8;
+         xCinit(t) = 0.6; xDinit(t) = 0.7;
+      end
+   end
+
+   % generator for initialization
+   % (note intialization of mu, which encourages the
+   % better log-likelihood representation)
+   generator = @()struct(...
+      'sigmaP', rand*pi, ...
+      'xA', xAinit, ...
+      'xB', xBinit, ...
+      'xC', xCinit, ...
+      'xD', xDinit, ...
+      'delta', randn(nStimuli, 2)*0.1);
+   fileName = sprintf('%s_%s_%s.mat', modelName, dataName, engine);
+
+   if preLoad && isfile(sprintf('storage/%s', fileName))
+      fprintf('Loading pre-stored samples for model %s on data %s\n', modelName, dataName);
+      load(sprintf('storage/%s', fileName), 'chains', 'stats', 'diagnostics', 'info');
+   else
+      tic; % start clock
+      [stats, chains, diagnostics, info] = callbayes(engine, ...
+         'model'           , sprintf('%s/%s_%s.txt', modelDir, modelName, engine)   , ...   , ...
+         'data'            , data                                      , ...
+         'outputname'      , 'samples'                                 , ...
+         'init'            , generator                                 , ...
+         'datafilename'    , modelName                                 , ...
+         'initfilename'    , modelName                                 , ...
+         'scriptfilename'  , modelName                                 , ...
+         'logfilename'     , sprintf('tmp/%s', modelName)              , ...
+         'nchains'         , nChains                                   , ...
+         'nburnin'         , nBurnin                                   , ...
+         'nsamples'        , nSamples                                  , ...
+         'monitorparams'   , params                                    , ...
+         'thin'            , nThin                                     , ...
+         'workingdir'      , sprintf('tmp/%s', modelName)              , ...
+         'verbosity'       , 0                                         , ...
+         'saveoutput'      , true                                      , ...
+         'allowunderscores', 1                                         , ...
+         'parallel'        , doParallel                                );
+      fprintf('%s took %f seconds!\n', upper(engine), toc); % show timing
+
+      % convergence of each parameter
+      disp('Convergence statistics:')
+      grtable(chains, 1.05)
+
+      % basic descriptive statistics
+      disp('Descriptive statistics for all chains:')
+      codatable(chains);
+
+      fprintf('Saving samples for model %s on data %s\n', modelName, dataName);
+      if ~isfolder('storage')
+         !mkdir storage
+      end
+      save(sprintf('storage/%s', fileName), 'chains', 'stats', 'diagnostics', 'info', '-v7.3');
+
+   end
+
+
+    % just convergent enough chains
+      % [keepChainsPM, rHat] = findKeepChains(chains.gammaPM, 2, 1.1);
+      % [keepChainsPS, rHat] = findKeepChains(chains.gammaPS, 2, 1.1);
+      % keepChains = intersect(keepChainsPM, keepChainsPS)
+      keepChains = [11 15 19]; % by visual inspection to ensure similarity follows higher-likelihood mode
+      fields = fieldnames(chains);
+      for i = 1:numel(fields)
+         chains.(fields{i}) = chains.(fields{i})(:, keepChains);
+      end
+
+      % two-dimensional savage dickey analysis
+         gammaLo = 0; gammaHi = 3; gammaTick = 1; gammaEps = 0.052;
+   gammaE = (gammaLo-gammaEps/2):gammaEps:(gammaHi + gammaEps/2);
+   gammaC = gammaLo:gammaEps:gammaHi;
+
+   countPosterior = histcounts2(chains.gammaPM(:), chains.gammaPS(:), ...
+      gammaE, gammaE, ...
+      'normalization', 'probability');
+   % countPrior = histcounts2(chains.gammaPrior(:), chains.gammaPrior(randperm(length(chains.gammaPrior(:))))', ...
+   %    gammaE, gammaE, ...
+   %    'normalization', 'probability');
+   count = histcounts(chains.gammaPrior(:), gammaE);
+   count(1) = 2*count(1);
+   count = count/sum(count);
+   countPrior = count'*count;
+
+
+   fontSize = 18;
+   scale = 0.5;
+   colorPrior = pantone.Custard;
+   colorPosterior = pantone.ClassicBlue;
+
+   F = figure; clf; hold on;
+   setFigure(F, [0.2 0.2 0.4 0.4], '');
+
+ % axis
+   set(gca, ...
+      'xlim'       , [gammaLo gammaHi]    , ...
+      'xtick'      , gammaLo:gammaTick:gammaHi    , ...
+      'ylim'       , [gammaLo gammaHi]    , ...
+      'ytick'      , gammaLo:gammaTick:gammaHi    , ...
+      'box'        , 'off'     , ...
+      'tickdir'    , 'out'     , ...
+      'layer'      , 'top'     , ...
+      'ticklength' , [0.02 0]  , ...
+      'clipping'   , 'off'     , ...
+      'fontsize'   , fontSize  );
+   axis square;
+   xlabel('$\gamma_{\mathrm{pm}}$', 'fontsize', fontSize+4, 'interp', 'latex');
+   ylabel('$\gamma_{\mathrm{ps}}$', 'fontsize', fontSize+4, 'interp', 'latex');
+   moveAxis(gca, [1 1 0.9 0.9], [0 0.025 0 0]);
+   Raxes(gca, 0.01, 0.01);
+
+for i = 1:length(gammaC)
+   for j = 1:length(gammaC)
+      val = sqrt(countPrior(i, j))*scale;
+      rectangle('position', [gammaC(i)-val/2 gammaC(j)-val/2 val val], ...
+         'curvature', [1 1], ...
+         'facecolor', colorPrior, ...
+         'edgecolor', colorPrior);
+      val = sqrt(countPosterior(i, j))*scale;
+      if val > 0
+     rectangle('position', [gammaC(i)-val/2 gammaC(j)-val/2 val val], ...
+         'curvature', [1 1], ...
+         'facecolor', colorPosterior, ...
+         'edgecolor', 'w');
+      end
+   end
+end
+
+H(1) = plot(-1, -1, 'o', ...
+   'markersize', 6, ...
+   'markerfacecolor', colorPrior, ...
+   'markeredgecolor', colorPrior);
+H(2) = plot(-1, -1, 'o', ...
+   'markersize', 6, ...
+   'markerfacecolor', colorPosterior, ...
+   'markeredgecolor', colorPosterior);
+
+L = legend(H, {'prior', 'posterior'}, ...
+   'fontsize', fontSize, ...
+   'box', 'off', ...
+   'location', 'northeast');
+set(L, 'position', get(L, 'position') + [0.075 0.05 0 0]);
+
+
+    % muP = get_matrix_from_coda(chains, 'muP');
+    % muM = get_matrix_from_coda(chains, 'muM');
+    % muS = get_matrix_from_coda(chains, 'muS');
+    % 
+    % figure; hold on;
+    % subplot(131); hold on;
+    % plot(ds.stimuli, muP(1:nStimuli), 'ko', 'markersize', 2, 'markerfacecolor', 'k');
+    % axis square;
+    % subplot(132); hold on;
+    % plot(ds.stimuli, muM(1:nStimuli), 'ko', 'markersize', 2, 'markerfacecolor', 'k');
+    % axis square;
+    % subplot(133); hold on;
+    % plot(ds.stimuli, muS(1:nStimuli), 'ko', 'markersize', 2, 'markerfacecolor', 'k');
+    % axis square;
+
+end

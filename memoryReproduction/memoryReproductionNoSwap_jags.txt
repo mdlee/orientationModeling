@@ -1,7 +1,15 @@
-# memory reproduction model with no swap errors
+# memory reproduction model without swaps
+
 data{
   pi = 3.1415
+  # wrap indices
+    for (r in 1:nStimuli){
+    sWrap[r, 1] = r
+    sWrap[r, 2] = r + nStimuli
+    sWrap[r, 3] = r + 2*nStimuli
+  }
 }
+
 model{
   # identifiability priors
   mu[1] = 0
@@ -9,18 +17,18 @@ model{
   for (j in 3:nStimuli){
     mu[j] ~ dunif(0, pi)
   } 
+  for (r in 1:nStimuli){
+    mu[r + nStimuli] = mu[r] - pi
+    mu[r + 2*nStimuli] = mu[r] + pi
+  }
   # memory noise
   sigma[1] ~ dunif(0, pi)
   sigma[2] ~ dunif(0, pi)
-  # swap error probabilities
-  omega3 ~ ddirch(rep(1, 3))
-  omega6 ~ ddirch(rep(1, 6))
   # experimental trials
   for (t in 1:nTrials){
-    # stimulus being targeted fixed to true target
-    xi[t, 1] = 1
-    xi[t, 2] = 1
+    nu[t] ~ dcat(c(1, 1, 1))
     # response
-    y[t] ~ dnorm(mu[stim[t, xi[t, setSize[t]]]], 1/sigma[setSize[t]]^2)
+    y[t] ~ dnorm(mu[sWrap[s[t], nu[t]]], 1/sigma[setSize[t]]^2)
+    yP[t] ~ dnorm(mu[sWrap[s[t], nu[t]]], 1/sigma[setSize[t]]^2)
   }
 } 

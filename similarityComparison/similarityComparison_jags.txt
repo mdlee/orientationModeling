@@ -23,14 +23,13 @@ model{
     dCD[t] = min(abs(xC[t]-xD[t]), pi-abs(xC[t]-xD[t]))
     # response
     y[t] ~ dinterval(dAB[t] - dCD[t], 0)
-
-    ## uncomment and monitor 'yp' to collect posterior predictive for log-likelihood
-    #xAp[t] ~ dnorm(mu[a[t]], 1/sigma^2)
-    #xBp[t] ~ dnorm(mu[b[t]], 1/sigma^2)
-    #xCp[t] ~ dnorm(mu[c[t]], 1/sigma^2)
-    #xDp[t] ~ dnorm(mu[d[t]], 1/sigma^2)
-    #dABp[t] = min(abs(xAp[t]-xBp[t]), pi-abs(xAp[t]-xBp[t]))
-    #dCDp[t] = min(abs(xCp[t]-xDp[t]), pi-abs(xCp[t]-xDp[t]))
-    #yp[t] ~ dinterval(dABp[t] - dCDp[t], 0)
+    # posterior predictive
+    xAp[t] ~ dnorm(mu[a[t]], 1/sigma^2)
+    xBp[t] ~ dnorm(mu[b[t]], 1/sigma^2)
+    xCp[t] ~ dnorm(mu[c[t]], 1/sigma^2)
+    xDp[t] ~ dnorm(mu[d[t]], 1/sigma^2)
+    dABp[t] = min(abs(xAp[t]-xBp[t]), pi-abs(xAp[t]-xBp[t]))
+    dCDp[t] = min(abs(xCp[t]-xDp[t]), pi-abs(xCp[t]-xDp[t]))
+    yP[t] = step(dABp[t] - dCDp[t])
   }
 }

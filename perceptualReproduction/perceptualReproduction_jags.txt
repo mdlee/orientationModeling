@@ -1,19 +1,34 @@
 # perceptual reproduction task
+
 data{
   pi = 3.1415
+  # wrap indices
+  for (r in 1:nStimuli){
+    sWrap[r, 1] = r
+    sWrap[r, 2] = r + nStimuli
+    sWrap[r, 3] = r + 2*nStimuli
+  }
 }
+
 model{
  # identifiability priors
   mu[1] = 0
   mu[2] ~ dunif(0, pi/2)
   for (j in 3:nStimuli){
     mu[j] ~ dunif(0, pi)
-  } 
+  }
+  # wrap orientations
+  for (r in 1:nStimuli){
+    mu[r + nStimuli] = mu[r] - pi
+    mu[r + 2*nStimuli] = mu[r] + pi
+  }
   # reproduction noise
   sigma ~ dunif(0, pi)
   # experimental trials
   for (t in 1:nTrials){
+    nu[t] ~ dcat(c(1, 1, 1))
     # response
-    y[t] ~ dnorm(mu[s[t]], 1/sigma^2)
+    y[t] ~ dnorm(mu[sWrap[s[t], nu[t]]], 1/sigma^2)
+    yP[t] ~ dnorm(mu[sWrap[s[t], nu[t]]], 1/sigma^2)
   }
 }

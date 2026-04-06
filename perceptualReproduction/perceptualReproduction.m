@@ -2,21 +2,23 @@
 
 clear; close all;
 preLoad = true;
+printFigures = true;
 
 % graphical model script
 modelDir = './';
 modelName = 'perceptualReproduction';
 engine = 'jags';
-% engine = 'stan';
-CI = [2.5 97.5];
 
 % data sets
 dataList = {...
    'tomicBaysPerception'; ...
    };
 
-%% general constants
+%% constants
 pi = 3.1415;
+load pantoneColors pantone
+fontSize = 18;
+CI = [2.5 97.5];
 
 % loop over data
 for dataIdx = 1:numel(dataList)
@@ -24,7 +26,7 @@ for dataIdx = 1:numel(dataList)
    switch dataName
 
       case 'tomicBaysPerception'
-         dataDir = 'data/';
+         dataDir = '../data/';
          dataName = 'tomicBays';
          load([dataDir dataName], 'dp');
 
@@ -36,21 +38,21 @@ for dataIdx = 1:numel(dataList)
 
    %% sampling from graphical model
    % parameters to monitor
-   params = {'mu', 'sigma'};
+   params = {'mu', 'sigma', 'nu', 'yP'};
 
    % MCMC properties
-   nChains    = 8;     % number of MCMC chains
+   nChains    = 12;     % number of MCMC chains
    nBurnin    = 2e3;   % number of discarded burn-in samples
    nSamples   = 2e3;   % number of collected samples
-   nThin      = 10;    % number of samples between those collected
+   nThin      = 5;    % number of samples between those collected
    doParallel = 1;     % whether MATLAB parallel toolbox parallizes chains
-   
+ 
    % assign MATLAB variables to the observed nodes
    data = struct(...
-      's'  , s      , ...
-      'y'   , y   , ...
+      's'       , s       , ...
+      'y'       , y       , ...
       'nStimuli', nStimuli, ...
-      'nTrials', nTrials);
+      'nTrials' , nTrials );
 
    % generator for initialization
    generator = @()struct('sigma', rand*pi);
@@ -79,7 +81,6 @@ for dataIdx = 1:numel(dataList)
          'workingdir'      , sprintf('/tmp/%s', modelName)              , ...
          'verbosity'       , 0                                         , ...
          'saveoutput'      , true                                      , ...
-         'allowunderscores', 1                                         , ...
          'parallel'        , doParallel                                );
       fprintf('%s took %f seconds!\n', upper(engine), toc); % show timing
 
@@ -99,9 +100,80 @@ for dataIdx = 1:numel(dataList)
 
    end
 
-      % posterior summary sigma
+   % just convergent enough chains
+   [keepChains, rHat] = findKeepChains(chains.sigma, 2, 1.1);
+   fields = fieldnames(chains);
+   for i = 1:numel(fields)
+      chains.(fields{i}) = chains.(fields{i})(:, keepChains);
+   end
+
+   % posterior summary sigma
    sigma = codatable(chains, 'sigma', @mean);
    bounds = prctile(chains.sigma(:), CI);
    fprintf('Posterior mean of sigma is %1.3f, with 95%% CI (%1.3f, %1.3f)\n', sigma, bounds);
+
+   % inferred representation
+   F = figure; clf; hold on;
+   setFigure(F, [0.2 0.2 0.4 0.4], '');
+
+   mu = codatable(chains, 'mu', @mean);
+   muBounds = nan(dp.nStimuli, 2);
+   for idx = 1:dp.nStimuli
+      muBounds(idx, :) = prctile(chains.(sprintf('mu_%d', idx))(:), CI);
+   end
+   muTruth = dp.stimuli;
+
+  cla; hold on;
+   set(gca, ...
+      'xlim'       , [0 pi]    , ...
+      'xtick'      , [0 pi/4 pi/2 3*pi/4 pi]   , ...
+      'xticklabelrot', 0, ...
+      'xticklabel' , {'$0$', '$\frac{\pi}{4}$', '$\frac{\pi}{2}$', '$\frac{3\pi}{4}$', '$\pi$'}, ...
+      'ylim'       , [0 pi]    , ...
+      'ytick'      , [0 pi/4 pi/2 3*pi/4 pi]   , ...
+      'yticklabel' , {'$0$', '$\frac{\pi}{4}$', '$\frac{\pi}{2}$', '$\frac{3\pi}{4}$', '$\pi$'}, ...
+      'ticklabelinterpreter', 'latex', ...
+      'box'        , 'off'     , ...
+      'tickdir'    , 'out'     , ...
+      'layer'      , 'top'     , ...
+      'ticklength' , [0.02 0]  , ...
+      'layer'      , 'top'     , ...
+      'clipping'   , 'off'     , ...
+      'fontsize'   , fontSize  );
+   axis square;
+   ylabel('Psychological', 'fontsize', fontSize);
+   xlabel('Physical', 'fontsize', fontSize);
+   moveAxis(gca, [1 1 0.95 0.95], [0 0.025 0 0]);
+   Raxes(gca, 0.02, 0.01);
+
+   for i = pi/4:pi/4:3*pi/4
+      plot([i i], [0 pi], '-', ...
+         'color', pantone.GlacierGray);
+      plot([0 pi], [i i], '-', ...
+         'color', pantone.GlacierGray);
+   end
+
+   for idx = 1:dp.nStimuli
+      plot(muTruth(idx)*ones(1, 2), muBounds(idx, :),  '-', ...
+         'color', pantone.ClassicBlue, ...
+         'linewidth', 1);
+      plot(muTruth(idx), mu(idx),  'o', ...
+         'markerfacecolor', pantone.ClassicBlue, ...
+         'markeredgecolor', 'w', ...
+         'linewidth', 0.5, ...
+         'markersize', 4);
+
+   end
+   plot([0 pi], [0 pi], '-', ...
+      'color', pantone.AuroraRed, 'linewidth', 0.5);
+
+    % print
+   if printFigures 
+      if ~isfolder('figures')
+         !mkdir figures
+      end
+      print(sprintf('figures/%s_%s.png', dataName, modelName), '-dpng');
+      print(sprintf('figures/%s_%s.eps', dataName, modelName), '-depsc');
+   end
 
 end
