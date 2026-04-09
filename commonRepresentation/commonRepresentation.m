@@ -1,7 +1,7 @@
 %% Perceptual reproduction model
 
 clear; close all;
-preLoad = false;
+preLoad = true;
 
 % graphical model script
 modelDir = './';
@@ -62,13 +62,13 @@ for dataIdx = 1:numel(dataList)
 
    %% sampling from graphical model
    % parameters to monitor
-   params = {'mu', 'sigmaP', 'sigmaM', 'sigmaS', 'ySP'};
+   params = {'mu', 'sigmaP', 'sigmaM', 'sigmaS', 'ySP', 'nu', 'xi'};
 
      % MCMC properties
-   nChains    = 20;     % number of MCMC chains
+   nChains    = 8;     % number of MCMC chains
    nBurnin    = 1e3;   % number of discarded burn-in samples
    nSamples   = 2e3;   % number of collected samples
-   nThin      = 5;    % number of samples between those collected
+   nThin      = 1;    % number of samples between those collected
    doParallel = 1;     % whether MATLAB parallel toolbox parallizes chains
 
    % assign MATLAB variables to the observed nodes
@@ -155,7 +155,7 @@ for dataIdx = 1:numel(dataList)
 
     % just convergent enough chains
    [keepChains, rHat] = findKeepChains(chains.sigmaS, 2, 1.1);
- keepChains =  keepChains(3);
+ % keepChains =  keepChains(3);
    fields = fieldnames(chains);
    for i = 1:numel(fields)
       chains.(fields{i}) = chains.(fields{i})(:, keepChains);
@@ -177,10 +177,15 @@ for dataIdx = 1:numel(dataList)
    F = figure; clf; hold on;
    setFigure(F, [0.2 0.2 0.4 0.4], '');
 
-   mu = codatable(chains, 'mu', @mean);
+   mu = nan(dp.nStimuli, 1);
    muBounds = nan(dp.nStimuli, 2);
    for idx = 1:dp.nStimuli
-      muBounds(idx, :) = prctile(chains.(sprintf('mu_%d', idx))(:), CI);
+      vals = chains.(sprintf('mu_%d', idx))(:);
+      if idx > 66 % so hard to get convergent chains here
+         vals = vals(find(vals > 2));
+      end
+      mu(idx) = mean(vals);
+      muBounds(idx, :) = prctile(vals, CI);
    end
    muTruth = dp.stimuli;
 

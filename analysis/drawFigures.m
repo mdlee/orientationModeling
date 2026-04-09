@@ -7,9 +7,10 @@ printFigures = true;
 
 analysisList = {...
    %  'threeScatter'; ...
+   'fourScatter'; ...
    % 'twoRepresentations'; ...
    % 'alternativeSimilarity'; ...
-   'clusterSavageDickey'; ...
+   %'clusterSavageDickey'; ...
    %'statisticalSummaries'; ...
    };
 
@@ -125,6 +126,121 @@ for analysisIdx = 1:numel(analysisList)
             plot([0 pi], [0 pi], '-', ...
                'color', pantone.AuroraRed, 'linewidth', 0.5);
          end
+
+         case 'fourScatter'
+
+         % relative directory structure in github repository
+         fileList = {...
+            '../perceptualReproduction/storage/perceptualReproduction_tomicBays_jags'; ...
+            '../memoryReproduction/storage/memoryReproduction_tomicBays_jags'; ...
+            '../similarityComparison/storage/similarityComparison_tomicBays_jags'; ...
+            '../commonRepresentation/storage/commonRepresentation_tomicBays_jags'};
+
+         fontSize = 20;
+         CIbounds = [2.5 97.5];
+         labels = {'perceptual', 'memory', 'similarity', 'common'};
+
+         nModels = numel(fileList);
+         [nRows, nCols] = subplotArrange(nModels);
+
+         F = figure; clf; hold on;
+         setFigure(F, [0.2 0.2 0.6 0.7], '');
+
+         for modelIdx = 1:nModels
+            fileName = fileList{modelIdx};
+            fprintf('Loading pre-stored samples from file %s\n', fileName);
+            load(sprintf('%s', fileName), 'chains', 'stats', 'diagnostics', 'info');
+
+            % just keep converged chains
+            switch modelIdx
+               case 1 % perceptual
+                  [keepChains, rHat] = findKeepChains(chains.sigma, 2, 1.1);
+               case 2 % memory
+                  [keepChains, rHat] = findKeepChains(chains.sigma_1, 2, 1.1);
+                  keepChains = setdiff(keepChains, 8); % remove 8 via visual inspection of mu_6
+               case 3 % similarity
+                  [keepChains, rHat] = findKeepChains(chains.sigma, 2, 1.1);
+               case 4 % common
+                  [keepChains, rHat] = findKeepChains(chains.sigmaS, 2, 1.1);
+            end
+            fields = fieldnames(chains);
+            for i = 1:numel(fields)
+               chains.(fields{i}) = chains.(fields{i})(:, keepChains);
+            end
+
+            if modelIdx ~=4
+               mu = codatable(chains, 'mu', @mean);
+               muBounds = nan(dm.nStimuli, 2);
+               for idx = 1:dm.nStimuli
+                  muBounds(idx, :) = prctile(chains.(sprintf('mu_%d', idx))(:), CIbounds);
+               end
+            else
+               mu = nan(dp.nStimuli, 1);
+               muBounds = nan(dp.nStimuli, 2);
+               for idx = 1:dp.nStimuli
+                  vals = chains.(sprintf('mu_%d', idx))(:);
+                  if idx > 66 % so hard to get convergent chains here
+                     vals = vals(find(vals > 2));
+                  end
+                  mu(idx) = mean(vals);
+                  muBounds(idx, :) = prctile(vals, CIbounds);
+               end
+            end
+            muTruth = dp.stimuli;
+
+            subplot(nRows, nCols, modelIdx); cla; hold on;
+            cla; hold on;
+            set(gca, ...
+               'xlim'       , [0 pi]    , ...
+               'xtick'      , [0 pi/4 pi/2 3*pi/4 pi]   , ...
+               'xticklabelrot', 0, ...
+               'xticklabel' , {'$0$', '$\frac{\pi}{4}$', '$\frac{\pi}{2}$', '$\frac{3\pi}{4}$', '$\pi$'}, ...
+               'ylim'       , [0 pi]    , ...
+               'ytick'      , [0 pi/4 pi/2 3*pi/4 pi]   , ...
+               'yticklabel' , {'$0$', '$\frac{\pi}{4}$', '$\frac{\pi}{2}$', '$\frac{3\pi}{4}$', '$\pi$'}, ...
+               'ticklabelinterpreter', 'latex', ...
+               'box'        , 'off'     , ...
+               'tickdir'    , 'out'     , ...
+               'layer'      , 'top'     , ...
+               'ticklength' , [0.02 0]  , ...
+               'layer'      , 'top'     , ...
+               'clipping'   , 'off'     , ...
+               'fontsize'   , fontSize  );
+            axis square;
+            
+            text(0, pi, labels{modelIdx}, ...
+               'fontsize', fontSize-4, ...
+               'fontweight', 'normal', ...
+               'vert', 'bot', 'hor', 'lef');
+            moveAxis(gca, [1 1 0.95 0.95], [0 0.025 0 0]);
+            Raxes(gca, 0.02, 0.01);
+
+            for i = pi/4:pi/4:3*pi/4
+               plot([i i], [0 pi], '-', ...
+                  'color', pantone.GlacierGray);
+               plot([0 pi], [i i], '-', ...
+                  'color', pantone.GlacierGray);
+            end
+
+            for idx = 1:dp.nStimuli
+               plot(muTruth(idx)*ones(1, 2), muBounds(idx, :),  '-', ...
+                  'color', pantone.ClassicBlue, ...
+                  'linewidth', 1);
+               plot(muTruth(idx), mu(idx),  'o', ...
+                  'markerfacecolor', pantone.ClassicBlue, ...
+                  'markeredgecolor', 'w', ...
+                  'linewidth', 0.5, ...
+                  'markersize', 4);
+            end
+            plot([0 pi], [0 pi], '-', ...
+               'color', pantone.AuroraRed, 'linewidth', 0.5);
+         end
+
+         [~, T(1)] = suplabel('Physical','x');
+         [~, T(2)] = suplabel('Psychological','y');
+         set(T, 'fontsize', fontSize+2, 'fontweight', 'normal');
+         set(T(2), 'vert', 'top');
+
 
       case 'twoRepresentations'
 
