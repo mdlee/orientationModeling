@@ -14,8 +14,7 @@ analysisList = {...
    % 'statisticalSummaries'; ...
    %'descriptiveAdequacyPerceptual'; ...
    % 'descriptiveAdequacyMemory'; ...
-     'descriptiveAdequacyMemoryNoSwap'; ...
-  % 'descriptiveAdequacySimilarity'; ...
+   'descriptiveAdequacySimilarity'; ...
    };
 
 % load data
@@ -896,92 +895,6 @@ for analysisIdx = 1:numel(analysisList)
                'markeredgecolor', pantone.ClassicBlue);
          end
 
-          case 'descriptiveAdequacyMemoryNoSwap'
-
-         if exist('descriptiveAdequacyMemoryNoSwapPreSave.mat', 'file')
-
-            load descriptiveAdequacyMemoryNoSwapPreSave count binsC
-
-         else
-
-            CI = [25 75];
-
-            lo = 0; hi = pi; eps = 0.01;
-            binsC = lo:eps:hi;
-            binsE = lo-eps/2:eps:hi+eps/2;
-
-            fileName = '../memoryReproduction/storage/memoryReproductionNoSwap_tomicBays_jags';
-            fprintf('Loading pre-stored samples from file %s\n', fileName);
-            load(sprintf('%s', fileName), 'chains', 'stats', 'diagnostics', 'info');
-
-            dm.response = mod(dm.response, pi);
-
-            [~, ~, rIdx] = histcounts(dm.response, 'binedges', binsE);
-
-            mn = nan(numel(binsC), 1);
-            credInterval = nan(numel(binsC), 2);
-            for i = 1:length(binsC)
-               match = find(rIdx == i);
-               nPer = numel(chains.yP_1);   % e.g. 2000*12, or use 2000*12 explicitly
-               vals = zeros(numel(match) * nPer, 1);
-               idx = 1;
-               for j = 1:numel(match)
-                  k = match(j);
-                  fname = sprintf('yP_%d', k);
-                  block = chains.(fname)(:);
-                  vals(idx:idx+numel(block)-1) = block;
-                  idx = idx + numel(block);
-               end
-               k = round((binsC(i) - vals) ./ pi);
-               vals = vals + k .* pi;
-               mn(i) = mean(vals);
-               credInterval(i, :) = prctile(vals, CI);
-            end
-
-            save descriptiveAdequacyMemoryNoSwapPreSave mn credInterval binsC
-         end
-
-         fontSize = 18;
-         scale = 0.25;
-         clr = pantone.DuskBlue;
-
-         F = figure; clf; hold on;
-         setFigure(F, [0.2 0.2 0.4 0.6], '');
-
-         set(gca, ...
-            'xlim'       , [0 pi]    , ...
-            'xtick'      , [0 pi/4 pi/2 3*pi/4 pi]   , ...
-            'xticklabelrot', 0, ...
-            'xticklabel' , {'$0$', '$\frac{\pi}{4}$', '$\frac{\pi}{2}$', '$\frac{3\pi}{4}$', '$\pi$'}, ...
-            'ylim'       , [-0.8 pi+0.8]    , ...
-            'ytick'      , [ 0 pi/4 pi/2 3*pi/4 pi ]   , ...
-            'yticklabel' , {'$0$', '$\frac{\pi}{4}$', '$\frac{\pi}{2}$', '$\frac{3\pi}{4}$', '$\pi$'}, ...
-            'ticklabelinterpreter', 'latex', ...
-            'box'        , 'off'     , ...
-            'tickdir'    , 'out'     , ...
-            'layer'      , 'top'     , ...
-            'ticklength' , [0.02 0]  , ...
-            'layer'      , 'top'     , ...
-            'clipping'   , 'off'     , ...
-            'fontsize'   , fontSize  );
-         xlabel('Data', 'fontsize', fontSize);
-         ylabel('Posterior Predictive', 'fontsize', fontSize);
-         moveAxis(gca, [1 1 0.9 0.9], [0.025 0.025 0 0]);
-         Raxes(gca, 0.01, 0.03);
-
-
-         for i = 1:length(binsC)
-            plot([binsC(i) binsC(i)], credInterval(i, :), '-', ...
-               'color', pantone.Custard);
-         end
-         for i = 1:length(binsC)
-
-            plot(binsC(i), mn(i), 'o', ...
-               'markerfacecolor', pantone.ClassicBlue, ...
-               'markersize', 2, ...
-               'markeredgecolor', pantone.ClassicBlue);
-         end
-
       case 'descriptiveAdequacySimilarity'
 
          nReps = 1e3;
@@ -1040,8 +953,8 @@ for analysisIdx = 1:numel(analysisList)
          end
 
          fontSize = 18;
-         lo = 0; hi = 1; eps = 0.02; xTick = 0.1;
-         clr = pantone.ClassicBlue;
+         lo = 0; hi = 1; eps = 0.01; xTick = 0.1;
+         clr = pantone.DuskBlue;
 
          binsC = lo:eps:hi;
          binsE = lo-eps/2:eps:hi+eps/2;
@@ -1065,14 +978,7 @@ for analysisIdx = 1:numel(analysisList)
          moveAxis(gca, [1 1 1 1], [0 0.025 0 0]);
          Raxes(gca, 0.01, 0.01);
 
-         count = histcounts(pC, 'binedges', binsE, 'norm', 'prob');
-         H = bar(binsC, count);
-         set(H, 'facecolor', clr, 'edgecolor', 'w', 'barwidth', 0.9);
-
-         fprintf('\n mean agreement is %1.2f, with interquartile range %1.2f-%1.2f\n', ...
-            mean(pC), prctile(pC, [2.5 97.5]));
-         fprintf('\n median agreement is %d\n', ...
-            round(100*median(pC)));
+         count =- 
 
    end
 
