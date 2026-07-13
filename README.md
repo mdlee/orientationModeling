@@ -1,11 +1,11 @@
 # Code accompanying Ngiam & Lee (2026)
 
-**Ngiam, W. X. Q., & Lee, M. D.** (2026). *Similarity judgments and visual working memory do not share the same cognitive representation.*  
-Preprint: [https://osf.io/preprints/psyarxiv/fm9vz_v1](https://osf.io/preprints/psyarxiv/fm9vz_v1)
+**Ngiam, W. X. Q., & Lee, M. D.** (2026). *Model-based evidence for task-dependent representations in psychological similarity and working memory.*  
+Preprint: [https://osf.io/preprints/psyarxiv/fm9vz_v2](https://osf.io/preprints/psyarxiv/fm9vz_v3)
 
 This repository contains the MATLAB and JAGS code used to fit and compare generative psychological models of orientation representations across perceptual reproduction, visual working memory, and similarity comparison. The analyses test whether a single shared psychological representation can account for all three tasks, or whether memory and similarity require task-specific distortions relative to perception.
 
-Empirical data are from [Tomic & Bays (2023)](https://psycnet.apa.org/record/2023-21056-001), packaged as `data/tomicBays.mat`. Each task is implemented with a wrap-copy generative model and, for several tasks, an alternative von Mises generative model—each with its own JAGS specification (`.txt`) and MATLAB driver (`.m`).
+Empirical data are from [Tomic & Bays (2024)](https://psycnet.apa.org/record/2023-21056-001), packaged as `data/tomicBays.mat`. Each task is implemented with a wrap-copy generative model and, for several tasks, an alternative von Mises generative model—each with its own JAGS specification (`.txt`) and MATLAB driver (`.m`).
 
 Models write MCMC output under per-task `storage/`, task figures under `figures/`, and paper-level analyses under `analysis/`.
 
@@ -33,7 +33,7 @@ All task scripts load `../data/tomicBays` relative to their folder.
 ```
 orientationModeling/
 ├── data/                    # tomicBays.mat and raw CSVs
-├── supportingFiles/           # Shared plotting and chain-filter helpers
+├── supportingFiles/         # Shared plotting and chain-filter helpers
 ├── perceptualReproduction/  # Single-stimulus reproduction
 ├── memoryReproduction/      # Working-memory reproduction (swap + no-swap)
 ├── similarityComparison/    # Pairwise similarity choice (AB vs CD)
@@ -164,8 +164,8 @@ Outputs go to `analysis/figures/` (and `analysis/results/` for summaries). Most 
 
 If you use this code, please cite:
 
-> Ngiam, W. X. Q., & Lee, M. D. (2026). Similarity judgments and visual working memory do not share the same cognitive representation. *PsyArXiv.* https://osf.io/preprints/psyarxiv/fm9vz_v1
+> Ngiam, W. X. Q., & Lee, M. D. (2026). Model-based evidence for task-dependent representations in psychological similarity and working memory. *PsyArXiv.* https://osf.io/preprints/psyarxiv/fm9vz_v3
 
 The empirical dataset should also be cited:
 
-> Tomic, Y., & Bays, P. M. (2023). [Evidence for independent orientation channels in visual perception and memory](https://psycnet.apa.org/record/2023-21056-001).
+> Tomić, I., & Bays, P. M. (2024). [Perceptual similarity judgments do not predict the distribution of errors in working memory. Journal of Experimental Psychology: Learning, Memory, and Cognition, 50(4), 535–549](https://psycnet.apa.org/record/2023-21056-001).
