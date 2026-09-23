@@ -1,0 +1,32 @@
+# With-swap memory reproduction, one Jones-Pewsey fit per set size.
+# nPresented is the set size (3 or 6). See README.md in this folder.
+
+
+model {
+  pi2 <- 3.141592653589793 * 2
+  halfPi <- pi2 / 4
+
+  # Identifiability constraints on psychological locations (semi-circle)
+  mu[1] <- 0
+  mu[2] ~ dunif(0, halfPi)
+  for (j in 3:nStimuli) {
+    mu[j] ~ dunif(0, halfPi * 2)
+  }
+
+  for (r in 1:nStimuli) {
+    phiMu[r] <- 2 * mu[r]
+  }
+
+  sigma ~ dunif(0.02, halfPi * 2)
+  kappa <- 1 / (sigma * sigma)
+  psi ~ dunif(-1, 1)
+
+  omegaPrior ~ ddirch(omegaPriorProbs[])
+  omega ~ ddirch(omegaPriorProbs[])
+
+  for (t in 1:nTrials) {
+    xi[t] ~ dcat(omega[])
+    recalled[t] <- s[t, xi[t]]
+    yCirc[t] ~ dJonesPewsey(phiMu[recalled[t]], kappa, psi)
+  }
+}

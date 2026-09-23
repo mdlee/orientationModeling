@@ -1,0 +1,34 @@
+# Perceptual reproduction model (Jones-Pewsey / doubled-angle)
+#
+# Line orientations live on a half-circle [0, pi). Pi ambiguity is handled by
+# mapping to the full circle via phi = 2 * theta, then using dJonesPewsey.
+#
+# Requires the Jones-Pewsey JAGS module (./jags-jonesPewsey).
+# psi ~ dunif(-1, 1): 0 is von Mises, -1 wrapped Cauchy, +1 cardioid.
+#
+# sigma has a small positive floor so kappa = 1/sigma^2 cannot explode and
+# trap the slice sampler on psi (numerical underflow at huge kappa).
+
+model {
+  pi2 <- 3.141592653589793 * 2
+  halfPi <- pi2 / 4
+
+  # Identifiability constraints on psychological locations (semi-circle)
+  mu[1] <- 0
+  mu[2] ~ dunif(0, halfPi)
+  for (j in 3:nStimuli) {
+    mu[j] ~ dunif(0, halfPi * 2)
+  }
+
+  sigma ~ dunif(0.02, halfPi * 2)
+  kappa <- 1 / (sigma * sigma)
+  psi ~ dunif(-1, 1)
+
+  for (r in 1:nStimuli) {
+    phiMu[r] <- 2 * mu[r]
+  }
+
+  for (t in 1:nTrials) {
+    yCirc[t] ~ dJonesPewsey(phiMu[s[t]], kappa, psi)
+  }
+}

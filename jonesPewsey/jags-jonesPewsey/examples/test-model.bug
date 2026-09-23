@@ -1,0 +1,8 @@
+model {
+  for (i in 1:N) {
+    theta[i] ~ dJonesPewsey(mu, kappa, psi)
+  }
+  mu <- 1.0
+  kappa <- 2.0
+  psi <- 0.3
+}

@@ -1,0 +1,7 @@
+load jonespewsey
+model in "test-model.bug"
+data in "test-data.txt"
+compile
+initialize
+adapt 10
+update 10

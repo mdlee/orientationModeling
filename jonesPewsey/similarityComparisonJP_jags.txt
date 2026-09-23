@@ -1,0 +1,43 @@
+# Similarity comparison model (Jones-Pewsey / doubled-angle)
+#
+# Mental samples live on the doubled circle; half-circle similarity is
+# min(|phi1-phi2|, 2*pi-|phi1-phi2|) / 2.
+#
+# Requires the Jones-Pewsey JAGS module (./jags-jonesPewsey).
+# psi ~ dunif(-1, 1). sigma has a small positive floor so kappa cannot explode.
+
+data {
+  pi = 3.141592653589793
+}
+
+model {
+  pi2 <- 2 * pi
+  halfPi <- pi / 2
+
+  # Identifiability constraints on psychological locations (semi-circle)
+  mu[1] <- 0
+  mu[2] ~ dunif(0, halfPi)
+  for (j in 3:nStimuli) {
+    mu[j] ~ dunif(0, pi)
+  }
+
+  for (r in 1:nStimuli) {
+    phiMu[r] <- 2 * mu[r]
+  }
+
+  sigma ~ dunif(0.02, pi)
+  kappa <- 1 / (sigma * sigma)
+  psi ~ dunif(-1, 1)
+
+  for (t in 1:nTrials) {
+    xAtmp[t] ~ dJonesPewsey(phiMu[a[t]], kappa, psi)
+    xBtmp[t] ~ dJonesPewsey(phiMu[b[t]], kappa, psi)
+    xCtmp[t] ~ dJonesPewsey(phiMu[c[t]], kappa, psi)
+    xDtmp[t] ~ dJonesPewsey(phiMu[d[t]], kappa, psi)
+
+    dAB[t] <- min(abs(xAtmp[t] - xBtmp[t]), pi2 - abs(xAtmp[t] - xBtmp[t])) / 2
+    dCD[t] <- min(abs(xCtmp[t] - xDtmp[t]), pi2 - abs(xCtmp[t] - xDtmp[t])) / 2
+
+    y[t] ~ dinterval(dAB[t] - dCD[t], 0)
+  }
+}

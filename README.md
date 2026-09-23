@@ -34,9 +34,11 @@ All task scripts load `../data/tomicBays` relative to their folder.
 orientationModeling/
 ├── data/                    # tomicBays.mat and raw CSVs
 ├── supportingFiles/           # Shared plotting and chain-filter helpers
+├── jags-vonMises/           # JAGS module: x ~ dvonmises(mu, kappa)
 ├── perceptualReproduction/  # Single-stimulus reproduction
 ├── memoryReproduction/      # Working-memory reproduction (swap + no-swap)
 ├── similarityComparison/    # Pairwise similarity choice (AB vs CD)
+├── jonesPewsey/             # Jones–Pewsey drivers + JAGS module
 ├── commonRepresentation/    # Joint representation across three tasks
 ├── clusterRepresentation/   # Clustered deviations from perceptual μ
 └── analysis/                # Paper figures and trial-level diagnostics
@@ -86,6 +88,16 @@ Then set `JAGS_LIBS` to `jags-vonMises/` (or `make install` system-wide) and pas
 **Sampling limitations.** Von Mises directions in JAGS can suffer from poor MCMC exploration when the posterior wraps the circle—scalar samplers treat `[0, 2π)` as an interval with endpoints, so chains may fail to move between modes near 0 and `2π`. That issue is discussed for the yeagle module in [this Cross Validated thread](https://stats.stackexchange.com/questions/459521/jags-circular-distribution-sampling-issues). In our hands this limits reliable inference most clearly for **similarity comparison**, where each trial conditions on four mental samples under **censoring** (`dinterval`), multiplying the effect of poor circular mixing. The wrap-copy Gaussian models in this repository are the primary fits used in the paper; von Mises drivers are included as an alternative specification, not as a drop-in replacement with equal performance.
 
 Representation plots in both model families use **boundary-aware credible intervals** on the half-circle (error bars split across 0 and π when the interval wraps).
+
+### Jones–Pewsey generative models
+
+Jones–Pewsey drivers, figures, and the custom JAGS module live under `jonesPewsey/` (same level as `perceptualReproduction/`). The wrap-copy circular-normal and von Mises drivers stay in their original task folders. Unlike EM fits that search `psi` on a discrete grid, this module treats `psi` as a continuous parameter (`x ~ dJonesPewsey(mu, kappa, psi)`).
+
+```bash
+cd jonesPewsey/jags-jonesPewsey && make
+```
+
+Then set `JAGS_LIBS` to `jonesPewsey/jags-jonesPewsey/` and pass `'modules', {'jonespewsey'}` through `callbayes` (see comments in each JP driver). See `jonesPewsey/README.md`.
 
 ### Stan
 

@@ -1,0 +1,40 @@
+# Memory reproduction without swaps (Jones-Pewsey / doubled-angle)
+#
+# Shared mu across set sizes 3 and 6. Noise (sigma, psi) is set-size-specific.
+# Likelihoods are written as two loops so each (kappa, psi) pair is a
+# contiguous block of dJonesPewsey nodes (avoids cache-thrashing the
+# normalizer when trials of both set sizes are interleaved).
+#
+# Requires the Jones-Pewsey JAGS module (./jags-jonesPewsey).
+# psi[k] ~ dunif(-1, 1). sigma has a small positive floor so kappa cannot explode.
+
+model {
+  pi2 <- 3.141592653589793 * 2
+  halfPi <- pi2 / 4
+
+  # Identifiability constraints on psychological locations (semi-circle)
+  mu[1] <- 0
+  mu[2] ~ dunif(0, halfPi)
+  for (j in 3:nStimuli) {
+    mu[j] ~ dunif(0, halfPi * 2)
+  }
+
+  for (r in 1:nStimuli) {
+    phiMu[r] <- 2 * mu[r]
+  }
+
+  sigma[1] ~ dunif(0.02, halfPi * 2)
+  sigma[2] ~ dunif(0.02, halfPi * 2)
+  psi[1] ~ dunif(-1, 1)
+  psi[2] ~ dunif(-1, 1)
+  for (k in 1:2) {
+    kappa[k] <- 1 / (sigma[k] * sigma[k])
+  }
+
+  for (t in 1:nTrials3) {
+    yCirc3[t] ~ dJonesPewsey(phiMu[s3[t]], kappa[1], psi[1])
+  }
+  for (t in 1:nTrials6) {
+    yCirc6[t] ~ dJonesPewsey(phiMu[s6[t]], kappa[2], psi[2])
+  }
+}

@@ -1,0 +1,19 @@
+# Example: Jones-Pewsey observations with unknown mean, concentration, and shape.
+#
+# psi is a continuous unknown — not a discrete grid.
+#
+# Load with:
+#   load jonespewsey
+#
+# Or in R/rjags:
+#   jags.model(..., modules = "jonespewsey")
+
+model {
+  for (i in 1:N) {
+    theta[i] ~ dJonesPewsey(mu, kappa, psi)
+  }
+
+  mu ~ dnorm(0, 0.001)
+  kappa ~ dgamma(0.1, 0.1)
+  psi ~ dunif(-2, 2)
+}
