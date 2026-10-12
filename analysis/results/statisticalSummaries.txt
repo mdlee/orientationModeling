@@ -33,3 +33,10 @@ Cluster Bayes Factor
 Via kernel density estimation (with bandwidth boosted by factor of 4 to avoid -inf), the log BF for the joint null is -495
 Via kernel density estimation (with bandwidth boosted by factor of 4 to avoid -inf, the log BF for the perceptual-memory null is -151
 Via kernel density estimation (with bandwidth boosted by factor of 4 to avoid -inf, the log BF for the perceptual-similarity null is -657
+
+----------
+Cluster Bayes Factor (entropification
+
+Via kernel density estimation (with bandwidth boosted by factor of 4 to avoid -inf), the log BF for the joint null is -174
+Via kernel density estimation (with bandwidth boosted by factor of 4 to avoid -inf, the log BF for the perceptual-memory null is -225
+Via kernel density estimation (with bandwidth boosted by factor of 4 to avoid -inf, the log BF for the perceptual-similarity null is -85

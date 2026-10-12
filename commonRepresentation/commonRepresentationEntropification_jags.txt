@@ -1,0 +1,70 @@
+# Common representation, with similarity comparison entropification
+#
+# Perception and memory match commonRepresentation_jags.txt (no posterior
+# predictive copies). Similarity mental samples match
+# similarityComparisonEntropification: one wrap index per trial, then
+#   P(yS = 1) = 1 / (1 + exp(-w * (dAB - dCD)))
+# with one shared w. yS = 1 when AB is less similar than CD.
+# Trial latents are sampled but not monitored.
+
+data{
+  pi = 3.1415
+  wrapOff[1] = 0
+  wrapOff[2] = -pi
+  wrapOff[3] = pi
+  for (r in 1:nStimuli){
+    sWrapP[r, 1] = r
+    sWrapP[r, 2] = r + nStimuli
+    sWrapP[r, 3] = r + 2*nStimuli
+  }
+  for (t in 1:nMTrials){
+    for (k in 1:maxPresented){
+      sWrapM[t, k] = sM[t, k]
+      sWrapM[t, k+maxPresented] = sM[t, k] + nStimuli
+      sWrapM[t, k+2*maxPresented] = sM[t, k] + 2*nStimuli
+    }
+  }
+}
+
+model{
+  mu[1] = 0
+  mu[2] ~ dunif(0, pi/2)
+  for (j in 3:nStimuli){
+    mu[j] ~ dunif(0, pi)
+  }
+  for (r in 1:nStimuli){
+    mu[r + nStimuli] = mu[r] - pi
+    mu[r + 2*nStimuli] = mu[r] + pi
+  }
+
+  sigmaP ~ dunif(0, pi)
+  for (t in 1:nPTrials){
+    nu[t] ~ dcat(c(1, 1, 1))
+    yP[t] ~ dnorm(mu[sWrapP[sP[t], nu[t]]], 1/sigmaP^2)
+  }
+
+  sigmaM[1] ~ dunif(0, pi)
+  sigmaM[2] ~ dunif(0, pi)
+  omega3 ~ ddirch(rep(1, 3))
+  omega6 ~ ddirch(rep(1, 6))
+  for (t in 1:nMTrials){
+    xi[t, 1] ~ dcat(c(omega3[1], omega3[2], omega3[3], 0, 0, 0, omega3[1], omega3[2], omega3[3], 0, 0, 0, omega3[1], omega3[2], omega3[3], 0, 0, 0))
+    xi[t, 2] ~ dcat(c(omega6[1], omega6[2], omega6[3], omega6[4], omega6[5], omega6[6], omega6[1], omega6[2], omega6[3], omega6[4], omega6[5], omega6[6], omega6[1], omega6[2], omega6[3], omega6[4], omega6[5], omega6[6]))
+    yM[t] ~ dnorm(mu[sWrapM[t, xi[t, setSize[t]]]], 1/sigmaM[setSize[t]]^2)
+  }
+
+  sigmaS ~ dunif(0, pi)
+  # mean 2, sd 1, truncated to [0, 20]; w multiplies the signed gap in radians
+  w ~ dnorm(2, 1) T(0, 20)
+  for (t in 1:nSTrials){
+    nuS[t] ~ dcat(c(1, 1, 1))
+    xA[t] ~ dnorm(mu[a[t]] + wrapOff[nuS[t]], 1/sigmaS^2)
+    xB[t] ~ dnorm(mu[b[t]] + wrapOff[nuS[t]], 1/sigmaS^2)
+    xC[t] ~ dnorm(mu[c[t]] + wrapOff[nuS[t]], 1/sigmaS^2)
+    xD[t] ~ dnorm(mu[d[t]] + wrapOff[nuS[t]], 1/sigmaS^2)
+    dAB[t] = min(abs(xA[t] - xB[t]), pi - abs(xA[t] - xB[t]))
+    dCD[t] = min(abs(xC[t] - xD[t]), pi - abs(xC[t] - xD[t]))
+    theta[t] = 1 / (1 + exp(-w * (dAB[t] - dCD[t])))
+    yS[t] ~ dbern(theta[t])
+  }
+}

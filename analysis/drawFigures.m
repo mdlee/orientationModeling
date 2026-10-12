@@ -8,9 +8,10 @@ printFigures = true;
 analysisList = {...
    % 'threeScatter'; ...
    % 'fourScatter'; ...
-   'twoRepresentations'; ...
+  % 'twoRepresentations'; ...
    %'clusterSavageDickey'; ...
-   % 'statisticalSummaries'; ...
+   %'clusterSavageDickeyEntropification'; ...
+   'statisticalSummaries'; ...
    %'descriptiveAdequacyPerceptual'; ...
    % 'descriptiveAdequacyMemory'; ...
    % 'descriptiveAdequacyMemoryNoSwap'; ...
@@ -417,6 +418,89 @@ for analysisIdx = 1:numel(analysisList)
             'location', 'northeast');
          set(L, 'position', get(L, 'position') + [0.075 0.05 0 0]);
 
+           case 'clusterSavageDickeyEntropification'
+
+         fileName = '../clusterRepresentation/storage/clusterRepresentationEntropification_tomicBays_jags';
+         fprintf('Loading pre-stored samples from file %s\n', fileName);
+         load(sprintf('%s', fileName), 'chains', 'stats', 'diagnostics', 'info');
+
+         % keepChains = [11 15 19]; % by visual inspection to ensure similarity follows higher-likelihood mode
+         % fields = fieldnames(chains);
+         % for i = 1:numel(fields)
+         %    chains.(fields{i}) = chains.(fields{i})(:, keepChains);
+         % end
+
+         % two-dimensional savage dickey analysis
+         gammaLo = 0; gammaHi = 3; gammaTick = 1; gammaEps = 0.052;
+         gammaE = (gammaLo-gammaEps/2):gammaEps:(gammaHi + gammaEps/2);
+         gammaC = gammaLo:gammaEps:gammaHi;
+
+         countPosterior = histcounts2(chains.gammaPM(:), chains.gammaPS(:), ...
+            gammaE, gammaE, ...
+            'normalization', 'probability');
+         count = histcounts(chains.gammaPrior(:), gammaE);
+         count(1) = 2*count(1);
+         count = count/sum(count);
+         countPrior = count'*count;
+
+         fontSize = 18;
+         scale = 0.5;
+         colorPrior = pantone.Custard;
+         colorPosterior = pantone.ClassicBlue;
+
+         F = figure; clf; hold on;
+         setFigure(F, [0.2 0.2 0.4 0.4], '');
+
+         % axis
+         set(gca, ...
+            'xlim'       , [gammaLo gammaHi]    , ...
+            'xtick'      , gammaLo:gammaTick:gammaHi    , ...
+            'ylim'       , [gammaLo gammaHi]    , ...
+            'ytick'      , gammaLo:gammaTick:gammaHi    , ...
+            'box'        , 'off'     , ...
+            'tickdir'    , 'out'     , ...
+            'layer'      , 'top'     , ...
+            'ticklength' , [0.02 0]  , ...
+            'clipping'   , 'off'     , ...
+            'fontsize'   , fontSize  );
+         axis square;
+         xlabel('$\gamma_{\mathrm{pm}}$', 'fontsize', fontSize+4, 'interp', 'latex');
+         ylabel('$\gamma_{\mathrm{ps}}$', 'fontsize', fontSize+4, 'interp', 'latex');
+         moveAxis(gca, [1 1 0.9 0.9], [0 0.025 0 0]);
+         Raxes(gca, 0.01, 0.01);
+
+         for i = 1:length(gammaC)
+            for j = 1:length(gammaC)
+               val = sqrt(countPrior(i, j))*scale;
+               rectangle('position', [gammaC(i)-val/2 gammaC(j)-val/2 val val], ...
+                  'curvature', [1 1], ...
+                  'facecolor', colorPrior, ...
+                  'edgecolor', colorPrior);
+               val = sqrt(countPosterior(i, j))*scale;
+               if val > 0
+                  rectangle('position', [gammaC(i)-val/2 gammaC(j)-val/2 val val], ...
+                     'curvature', [1 1], ...
+                     'facecolor', colorPosterior, ...
+                     'edgecolor', 'w');
+               end
+            end
+         end
+
+         H(1) = plot(-1, -1, 'o', ...
+            'markersize', 6, ...
+            'markerfacecolor', colorPrior, ...
+            'markeredgecolor', colorPrior);
+         H(2) = plot(-1, -1, 'o', ...
+            'markersize', 6, ...
+            'markerfacecolor', colorPosterior, ...
+            'markeredgecolor', colorPosterior);
+
+         L = legend(H, {'prior', 'posterior'}, ...
+            'fontsize', fontSize, ...
+            'box', 'off', ...
+            'location', 'northeast');
+         set(L, 'position', get(L, 'position') + [0.075 0.05 0 0]);
+
       case 'statisticalSummaries'
 
          fid = fopen('results/statisticalSummaries.txt', 'w');
@@ -428,7 +512,8 @@ for analysisIdx = 1:numel(analysisList)
             '../perceptualReproduction/storage/perceptualReproduction_tomicBays_jags'; ...
             '../memoryReproduction/storage/memoryReproduction_tomicBays_jags'; ...
             '../similarityComparison/storage/similarityComparison_tomicBays_jags'; ...
-            '../clusterRepresentation/storage/clusterRepresentation_tomicBays_jags'};
+            '../clusterRepresentation/storage/clusterRepresentation_tomicBays_jags'; ...
+            '../clusterRepresentation/storage/clusterRepresentationEntropification_tomicBays_jags'};
 
          CIbounds = [2.5 97.5];
 
@@ -623,6 +708,74 @@ for analysisIdx = 1:numel(analysisList)
          logBF = log(fPosterior) - log(fPrior);
          fprintf(fid, 'Via kernel density estimation (with bandwidth boosted by factor of %d to avoid -inf, the log BF for the perceptual-similarity null is %.0f\n', ...
             scale, logBF);
+
+
+         % CLUSTER
+         scale = 4;
+
+         fileName = fileList{5};
+         fprintf('\n----------\nLoading pre-stored samples from file %s\n', fileName);
+         load(sprintf('%s', fileName), 'chains');
+         fprintf(fid, '\n----------\nCluster Bayes Factor (entropification\n\n');
+
+         Xposterior = [chains.gammaPS(:) chains.gammaPM(:)];
+         Xprior = [chains.gammaPrior(:) chains.gammaPrior(randperm(length(chains.gammaPrior(:))))'];
+         Xcrit = [0 0];
+         n = size(Xposterior, 1);
+         d = size(Xposterior, 2);
+         sigma = std(Xposterior, 0, 1);
+         bw = sigma * (4 / (n * (d + 4))) ^ (1 / (d + 4));
+         fPosterior = ksdensity(Xposterior, Xcrit, 'Bandwidth', bw*scale);
+
+         n = size(Xprior, 1);
+         d = size(Xprior, 2);
+         sigma = std(Xprior, 0, 1);
+         bw = sigma * (4 / (n * (d + 4))) ^ (1 / (d + 4));
+         fPrior = ksdensity(Xprior, Xcrit, 'Bandwidth', bw*scale);
+
+         logBF = log(fPosterior) - log(fPrior);
+         fprintf(fid, 'Via kernel density estimation (with bandwidth boosted by factor of %d to avoid -inf), the log BF for the joint null is %.0f\n', ...
+            scale, logBF);
+
+         Xposterior = chains.gammaPM(:);
+         Xprior = chains.gammaPrior(:);
+         Xcrit = 0;
+         n = size(Xposterior, 1);
+         d = size(Xposterior, 2);
+         sigma = std(Xposterior, 0, 1);
+         bw = sigma * (4 / (n * (d + 4))) ^ (1 / (d + 4));
+         fPosterior = ksdensity(Xposterior, Xcrit, 'Bandwidth', bw*scale);
+
+         n = size(Xprior, 1);
+         d = size(Xprior, 2);
+         sigma = std(Xprior, 0, 1);
+         bw = sigma * (4 / (n * (d + 4))) ^ (1 / (d + 4));
+         fPrior = ksdensity(Xprior, Xcrit, 'Bandwidth', bw*scale);
+
+         logBF = log(fPosterior) - log(fPrior);
+         fprintf(fid, 'Via kernel density estimation (with bandwidth boosted by factor of %d to avoid -inf, the log BF for the perceptual-memory null is %.0f\n', ...
+            scale, logBF);
+
+         Xposterior = chains.gammaPS(:);
+         Xprior = chains.gammaPrior(:);
+         Xcrit = 0;
+         n = size(Xposterior, 1);
+         d = size(Xposterior, 2);
+         sigma = std(Xposterior, 0, 1);
+         bw = sigma * (4 / (n * (d + 4))) ^ (1 / (d + 4));
+         fPosterior = ksdensity(Xposterior, Xcrit, 'Bandwidth', bw*scale);
+
+         n = size(Xprior, 1);
+         d = size(Xprior, 2);
+         sigma = std(Xprior, 0, 1);
+         bw = sigma * (4 / (n * (d + 4))) ^ (1 / (d + 4));
+         fPrior = ksdensity(Xprior, Xcrit, 'Bandwidth', bw*scale);
+
+         logBF = log(fPosterior) - log(fPrior);
+         fprintf(fid, 'Via kernel density estimation (with bandwidth boosted by factor of %d to avoid -inf, the log BF for the perceptual-similarity null is %.0f\n', ...
+            scale, logBF);
+
+
          fclose(fid);
 
 

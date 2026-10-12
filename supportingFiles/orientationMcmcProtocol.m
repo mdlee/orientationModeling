@@ -10,16 +10,22 @@ function [chains, stats, diagnostics, info] = orientationMcmcProtocol(cfg)
 %
 % Optional: modules, nChains, nBurninAdapt, nBurninRestart, nThin,
 % nDrawsWanted, nSamplesChunk, nSamplesMax, rHatMax, essMin, doParallel,
-% rngSeed, piVal, restartJitter, extraDiagPrefixes.
+% rngSeed, piVal, restartJitter, extraDiagPrefixes, muPrefix,
+% alignCompanions.
+%
+% muPrefix is the location stem compared to the physical stimuli ('mu'
+% by default). alignCompanions lists other location stems that receive
+% the same per-chain wrap shift (none by default).
 
 cfg = fillDefaults(cfg);
 
 if isfield(cfg, 'chains') && ~isempty(cfg.chains)
-   chains = dropWrapMus(cfg.chains, cfg.nStimuli);
+   chains = dropWrapMus(cfg.chains, cfg.nStimuli, locationPrefixes(cfg));
    [chains, nFlips] = alignMuWraps(chains, cfg.stimuli, cfg.piVal, ...
-      cfg.nStimuli, cfg.sizeField);
+      cfg.nStimuli, cfg.sizeField, cfg.muPrefix, cfg.alignCompanions);
    if nFlips > 0
-      fprintf('Wrap-aligned %d additional chain-by-bin mu shifts after load\n', nFlips);
+      fprintf('Wrap-aligned %d additional chain-by-bin %s shifts after load\n', ...
+         nFlips, cfg.muPrefix);
    end
    diagnostics = diagnosePosterior(chains, cfg);
    printDiagnostics(diagnostics);
@@ -58,10 +64,10 @@ while true
       info = infoChunk;
    end
 
-   chains = dropWrapMus(chains, cfg.nStimuli);
+   chains = dropWrapMus(chains, cfg.nStimuli, locationPrefixes(cfg));
    [chains, nFlips] = alignMuWraps(chains, cfg.stimuli, cfg.piVal, ...
-      cfg.nStimuli, cfg.sizeField);
-   fprintf('Wrap-aligned %d chain-by-bin mu shifts\n', nFlips);
+      cfg.nStimuli, cfg.sizeField, cfg.muPrefix, cfg.alignCompanions);
+   fprintf('Wrap-aligned %d chain-by-bin %s shifts\n', nFlips, cfg.muPrefix);
 
    chains = restartLostChains(chains, cfg, chunk);
 
@@ -118,6 +124,17 @@ if ~isfield(cfg, 'rngSeed'), cfg.rngSeed = 1; end
 if ~isfield(cfg, 'piVal'), cfg.piVal = 3.1415; end
 if ~isfield(cfg, 'restartJitter'), cfg.restartJitter = @(t) t; end
 if ~isfield(cfg, 'extraDiagPrefixes'), cfg.extraDiagPrefixes = {}; end
+if ~isfield(cfg, 'muPrefix') || isempty(cfg.muPrefix)
+   cfg.muPrefix = 'mu';
+end
+if ~isfield(cfg, 'alignCompanions') || isempty(cfg.alignCompanions)
+   cfg.alignCompanions = {};
+end
+cfg.alignCompanions = cfg.alignCompanions(:)';
+end
+
+function prefixes = locationPrefixes(cfg)
+prefixes = [{cfg.muPrefix} cfg.alignCompanions];
 end
 
 function [stats, chains, diagnostics, info] = callJags(cfg, initArg, ...
@@ -152,23 +169,38 @@ end
 [stats, chains, diagnostics, info] = callbayes('jags', args{:});
 end
 
-function chains = dropWrapMus(chains, nStimuli)
+function chains = dropWrapMus(chains, nStimuli, prefixes)
+if nargin < 3 || isempty(prefixes)
+   prefixes = {'mu'};
+end
 fn = fieldnames(chains);
 for i = 1:numel(fn)
-   if strncmp(fn{i}, 'mu_', 3)
-      idx = sscanf(fn{i}, 'mu_%d');
-      if ~isempty(idx) && idx > nStimuli
-         chains = rmfield(chains, fn{i});
+   name = fn{i};
+   for p = 1:numel(prefixes)
+      token = [prefixes{p} '_'];
+      nToken = numel(token);
+      if ~isfield(chains, name) || numel(name) <= nToken || ~strncmp(name, token, nToken)
+         continue
+      end
+      idx = str2double(name(nToken+1:end));
+      if ~isnan(idx) && idx == floor(idx) && idx > nStimuli
+         chains = rmfield(chains, name);
       end
    end
 end
 end
 
-function [chains, nFlips] = alignMuWraps(chains, stimuli, piVal, nStimuli, sizeField)
+function [chains, nFlips] = alignMuWraps(chains, stimuli, piVal, nStimuli, sizeField, muPrefix, companions)
+if nargin < 6 || isempty(muPrefix)
+   muPrefix = 'mu';
+end
+if nargin < 7 || isempty(companions)
+   companions = {};
+end
 nFlips = 0;
 nCh = size(chains.(sizeField), 2);
 for j = 2:nStimuli
-   fname = sprintf('mu_%d', j);
+   fname = sprintf('%s_%d', muPrefix, j);
    if ~isfield(chains, fname)
       continue
    end
@@ -182,7 +214,14 @@ for j = 2:nStimuli
          continue
       end
       nFlips = nFlips + 1;
-      X(:, c) = X(:, c) + (cands(k) - m);
+      shift = cands(k) - m;
+      X(:, c) = X(:, c) + shift;
+      for p = 1:numel(companions)
+         cname = sprintf('%s_%d', companions{p}, j);
+         if isfield(chains, cname)
+            chains.(cname)(:, c) = chains.(cname)(:, c) + shift;
+         end
+      end
    end
    chains.(fname) = X;
 end
@@ -232,7 +271,7 @@ err = zeros(1, nCh);
 for c = 1:nCh
    acc = 0;
    for j = 1:cfg.nStimuli
-      fname = sprintf('mu_%d', j);
+      fname = sprintf('%s_%d', cfg.muPrefix, j);
       if ~isfield(chains, fname)
          continue
       end
@@ -255,9 +294,9 @@ for i = 1:numel(lost)
    c = lost(i);
    [~, chainsNew, ~, ~] = callJags(cfg, @()template, ...
       cfg.nBurninRestart, nKept, 1, cfg.modelName, chunk, c);
-   chainsNew = dropWrapMus(chainsNew, cfg.nStimuli);
+   chainsNew = dropWrapMus(chainsNew, cfg.nStimuli, locationPrefixes(cfg));
    [chainsNew, ~] = alignMuWraps(chainsNew, cfg.stimuli, cfg.piVal, ...
-      cfg.nStimuli, cfg.sizeField);
+      cfg.nStimuli, cfg.sizeField, cfg.muPrefix, cfg.alignCompanions);
    fn = fieldnames(chains);
    for f = 1:numel(fn)
       if isfield(chainsNew, fn{f}) && size(chainsNew.(fn{f}), 2) == 1
@@ -268,7 +307,7 @@ end
 end
 
 function diag = diagnosePosterior(chains, cfg)
-names = monitoredNames(chains, cfg.nStimuli, cfg.extraDiagPrefixes);
+names = monitoredNames(chains, cfg);
 nNames = numel(names);
 rhat = nan(nNames, 1);
 ess = nan(nNames, 1);
@@ -309,14 +348,18 @@ if isempty(idxE)
 end
 end
 
-function names = monitoredNames(chains, nStimuli, extraPrefixes)
+function names = monitoredNames(chains, cfg)
+nStimuli = cfg.nStimuli;
+extraPrefixes = cfg.extraDiagPrefixes;
+muToken = [cfg.muPrefix '_'];
+nMuToken = numel(muToken);
 fn = fieldnames(chains);
 keep = {};
 for i = 1:numel(fn)
    name = fn{i};
-   if strncmp(name, 'mu_', 3)
-      idx = sscanf(name, 'mu_%d');
-      if isempty(idx) || idx < 2 || idx > nStimuli
+   if strncmp(name, muToken, nMuToken)
+      idx = str2double(name(nMuToken+1:end));
+      if isnan(idx) || idx ~= floor(idx) || idx < 2 || idx > nStimuli
          continue
       end
    elseif strcmp(name, 'sigma') || strncmp(name, 'sigma_', 6)
